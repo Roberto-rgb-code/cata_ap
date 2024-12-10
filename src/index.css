@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+
+    /* Siempre tema claro */
+    color: #213547;
+    background-color: #ffffff;
+
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Forzar estilos para modo oscuro */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color: #213547; /* Mismos colores que el modo claro */
+      background-color: #ffffff; /* Mismo fondo que el modo claro */
+    }
+
+    button {
+      background-color: #f9f9f9; /* Mismo fondo que en modo claro */
+    }
+  }
+
+  /* Reglas para enlaces y botones */
+  a:hover {
+    color: #747bff;
+  }
+
+  button {
+    background-color: #f9f9f9;
+  }
+}
+
+@layer components {
+  .custom-button {
+    @apply rounded-lg border border-transparent px-4 py-2 text-base font-medium 
+    bg-[#ffffff] cursor-pointer transition-colors duration-250;
+  }
+
+  .custom-button:hover {
+    @apply border-[#646cff];
+  }
+
+  .custom-button:focus {
+    @apply outline-none ring-4;
+  }
+}
