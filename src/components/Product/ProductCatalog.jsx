@@ -9,37 +9,85 @@ const ProductCatalog = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [visibleProducts, setVisibleProducts] = useState(24);
+  
+  // Añadir estado para debugging
+  const [debug, setDebug] = useState({
+    rawProducts: null,
+    rawStocks: null,
+    processedProducts: null,
+    activeFilters: null
+  });
 
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
+        
+        // 1. Fetch data
         const [productsData, stocksData] = await Promise.all([
           fetchProducts(),
           fetchStocks()
         ]);
 
-        const stocksMap = stocksData.reduce((acc, stock) => {
-          acc[stock.Material] = stock.Stock;
-          return acc;
-        }, {});
-
-        const processedProducts = productsData.map(product => ({
-          id: product.skuPadre,
-          name: product.nombrePadre,
-          description: product.descripcion,
-          categorias: product.categorias,
-          imageUrl: product.imagenesPadre[0],
-          tipo: product.hijos?.[0]?.tipo || '',
-          stock: stocksMap[product.skuPadre] || 0
+        // Guardar datos crudos para debug
+        setDebug(prev => ({
+          ...prev,
+          rawProducts: productsData,
+          rawStocks: stocksData
         }));
 
+        // Si no hay datos, mostrar error
+        if (!productsData?.length) {
+          throw new Error('No se recibieron productos de la API');
+        }
+
+        // 2. Procesar stocks
+        const stocksMap = stocksData?.reduce((acc, stock) => {
+          if (stock?.Material) {
+            acc[stock.Material] = stock.Stock;
+          }
+          return acc;
+        }, {}) || {};
+
+        // 3. Procesar productos con validaciones
+        const processedProducts = productsData.map((product) => {
+          if (!product?.skuPadre) {
+            console.warn('Producto sin skuPadre:', product);
+          }
+
+          return {
+            id: product.skuPadre || '',
+            name: product.nombrePadre || 'Producto sin nombre',
+            description: product.descripcion || '',
+            categorias: Array.isArray(product.categorias) 
+              ? product.categorias 
+              : product.categorias 
+                ? [product.categorias] 
+                : [],
+            imageUrl: product.imagenesPadre?.[0] || 'https://via.placeholder.com/300x300?text=No+image',
+            tipo: product.hijos?.[0]?.tipo || '',
+            stock: stocksMap[product.skuPadre] || 0
+          };
+        });
+
+        // Guardar productos procesados para debug
+        setDebug(prev => ({
+          ...prev,
+          processedProducts
+        }));
+
+        console.log('Productos procesados:', processedProducts);
         setProducts(processedProducts);
-        // Filtrar inicialmente solo los productos con existencias
-        const productsWithStock = processedProducts.filter(product => product.stock > 0);
-        setFilteredProducts(productsWithStock);
+
+        // Mostrar todos los productos (sin filtrar por existencias)
+        setFilteredProducts(processedProducts);
+
       } catch (err) {
-        console.error('Error in loadData:', err);
+        console.error('Error detallado:', {
+          message: err.message,
+          stack: err.stack,
+          debug: debug
+        });
         setError(err.message);
       } finally {
         setLoading(false);
@@ -47,69 +95,70 @@ const ProductCatalog = () => {
     };
 
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSearch = (searchTerm) => {
-    if (!searchTerm) {
-      // Al limpiar la búsqueda, mostrar solo productos con existencias
-      const productsWithStock = products.filter(product => product.stock > 0);
-      setFilteredProducts(productsWithStock);
-    } else {
-      const filtered = products.filter(product => 
-        (product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.description.toLowerCase().includes(searchTerm.toLowerCase())) &&
-        product.stock > 0 // Mantener el filtro de existencias en la búsqueda
-      );
-      setFilteredProducts(filtered);
-    }
-    setVisibleProducts(24);
-  };
+    // Guardar filtro actual para debug
+    setDebug(prev => ({
+      ...prev,
+      activeFilters: { ...prev.activeFilters, search: searchTerm }
+    }));
 
-  const handleFilterChange = (filterType, value) => {
     let filtered = [...products];
     
-    if (filterType === 'categorias') {
-      filtered = filtered.filter(product => 
-        product.categorias === value && product.stock > 0 // Mantener el filtro de existencias
-      );
-    } else if (filterType === 'existencia') {
-      filtered = filtered.filter(product => {
-        if (value === 'disponible') {
-          return product.stock > 0;
-        } else if (value === 'agotado') {
-          return product.stock === 0;
-        }
-        return true;
+    if (searchTerm) {
+      filtered = products.filter((p) => {
+        const nameLower = p.name?.toLowerCase() || '';
+        const descLower = p.description?.toLowerCase() || '';
+        const term = searchTerm.toLowerCase();
+        return (nameLower.includes(term) || descLower.includes(term));
       });
     }
-    
+
+    console.log('Productos filtrados por búsqueda:', filtered);
     setFilteredProducts(filtered);
     setVisibleProducts(24);
   };
 
-  const loadMoreProducts = () => {
-    setVisibleProducts(prev => prev + 24);
+  // Solo se filtra por categorías
+  const handleFilterChange = (filterType, value) => {
+    setDebug(prev => ({
+      ...prev,
+      activeFilters: { ...prev.activeFilters, [filterType]: value }
+    }));
+
+    let filtered = [...products];
+
+    if (filterType === 'categorias' && value) {
+      filtered = filtered.filter(p => p.categorias.includes(value));
+    }
+    
+    console.log('Productos filtrados por', filterType, ':', filtered);
+    setFilteredProducts(filtered);
+    setVisibleProducts(24);
   };
 
-  if (loading) return (
-    <div className="flex justify-center items-center min-h-screen">
-      <div className="text-center p-8">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#242964] mx-auto mb-4"></div>
-        <p>Cargando productos...</p>
+  if (error) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-center p-8 text-red-600">
+          <p className="text-xl mb-2">Error al cargar los productos</p>
+          <p>{error}</p>
+          <details className="mt-4 text-left">
+            <summary>Información de debug</summary>
+            <pre className="mt-2 p-4 bg-gray-100 rounded">
+              {JSON.stringify(debug, null, 2)}
+            </pre>
+          </details>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
-  if (error) return (
-    <div className="flex justify-center items-center min-h-screen">
-      <div className="text-center p-8 text-red-600">
-        <p className="text-xl mb-2">Error al cargar los productos</p>
-        <p>{error}</p>
-      </div>
-    </div>
-  );
-
-  const displayedProducts = filteredProducts.slice(0, visibleProducts);
+  if (loading) {
+    return <div>Cargando productos...</div>;
+  }
 
   return (
     <div className="max-w-[1200px] mx-auto p-6">
@@ -121,8 +170,13 @@ const ProductCatalog = () => {
         />
         
         <div className="flex-1">
+          {/* Mostrar contador de productos */}
+          <div className="mb-4 text-sm text-gray-600">
+            Mostrando {filteredProducts.length} productos
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {displayedProducts.map(product => (
+            {filteredProducts.slice(0, visibleProducts).map((product) => (
               <Link 
                 to={`/promocionales/product/${product.id}`} 
                 key={product.id}
@@ -130,20 +184,25 @@ const ProductCatalog = () => {
               >
                 <div className="aspect-square mb-4 relative overflow-hidden">
                   <img 
-                    src={product.imageUrl} 
+                    src={product.imageUrl}
                     alt={product.name}
                     className="w-full h-full object-contain hover:scale-105 transition-transform duration-300"
                     onError={(e) => {
-                      e.target.src = 'https://via.placeholder.com/300x300?text=Imagen+no+disponible';
+                      e.target.src = 'https://via.placeholder.com/300x300?text=No+image';
                     }}
                   />
                 </div>
                 <div className="text-center">
-                  <h2 className="text-[#242964] font-bold text-lg mb-1">{product.name}</h2>
+                  <h2 className="text-[#242964] font-bold text-lg mb-1">
+                    {product.name}
+                  </h2>
                   <p className="text-gray-600 mb-1">{product.tipo}</p>
-                  <p className={`text-sm ${product.stock > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {product.stock > 0 ? `Stock: ${product.stock}` : 'Sin existencias'}
-                  </p>
+                  {/* Si stock > 0, mostramos la cantidad; si no, no mostramos nada */}
+                  {product.stock > 0 && (
+                    <p className="text-sm text-green-600">
+                      Stock: {product.stock}
+                    </p>
+                  )}
                 </div>
               </Link>
             ))}
@@ -152,7 +211,7 @@ const ProductCatalog = () => {
           {filteredProducts.length > visibleProducts && (
             <div className="flex justify-center mt-6">
               <button
-                onClick={loadMoreProducts}
+                onClick={() => setVisibleProducts(prev => prev + 24)}
                 className="px-6 py-2 bg-[#242964] text-white rounded hover:bg-[#1e2255] transition-colors"
               >
                 Cargar más productos

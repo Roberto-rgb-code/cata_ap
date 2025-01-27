@@ -1,12 +1,21 @@
-// Sidebar.jsx
 import React, { useState } from 'react';
 
 const Sidebar = ({ onSearch, onFilterChange, products = [] }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [openSection, setOpenSection] = useState(null);
 
-  // Obtener categorías únicas y ordenarlas alfabéticamente
-  const uniqueCategories = [...new Set(products.map(p => p.categorias))].filter(Boolean).sort();
+  // Obtener categorías únicas
+  // A veces product.categorias es array, a veces string.
+  // Aplanamos si es array.
+  const uniqueCategories = [
+    ...new Set(
+      products.flatMap(p =>
+        Array.isArray(p.categorias) ? p.categorias : [p.categorias]
+      )
+    )
+  ]
+    .filter(Boolean)
+    .sort();
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -19,6 +28,7 @@ const Sidebar = ({ onSearch, onFilterChange, products = [] }) => {
 
   return (
     <div className="w-64">
+      {/* BÚSQUEDA */}
       <div>
         <h3 className="text-[#242964] font-medium">BÚSQUEDA</h3>
         <form onSubmit={handleSubmit} className="mt-2">
@@ -38,16 +48,18 @@ const Sidebar = ({ onSearch, onFilterChange, products = [] }) => {
         </form>
       </div>
 
+      {/* BÚSQUEDA AVANZADA */}
       <div className="mt-6">
         <h3 className="text-[#242964] font-medium mb-2">BÚSQUEDA AVANZADA</h3>
-        
-        {/* Categorías */}
-        <div onClick={() => toggleSection('categorias')} 
-             className="flex justify-between items-center py-2 cursor-pointer border-t">
+
+        {/* CATEGORÍAS */}
+        <div
+          onClick={() => toggleSection('categorias')}
+          className="flex justify-between items-center py-2 cursor-pointer border-t"
+        >
           <span>CATEGORÍAS</span>
           <span>{openSection === 'categorias' ? '▼' : '▲'}</span>
         </div>
-        
         {openSection === 'categorias' && (
           <div className="pl-4 py-2">
             {uniqueCategories.map((category, index) => (
@@ -63,26 +75,6 @@ const Sidebar = ({ onSearch, onFilterChange, products = [] }) => {
                 </label>
               </div>
             ))}
-          </div>
-        )}
-        
-        {/* Existencia */}
-        <div onClick={() => toggleSection('existencia')}
-             className="flex justify-between items-center py-2 cursor-pointer border-t">
-          <span>EXISTENCIA</span>
-          <span>{openSection === 'existencia' ? '▼' : '▲'}</span>
-        </div>
-
-        {openSection === 'existencia' && (
-          <div className="pl-4 py-2">
-            <select 
-              className="w-full p-1 border rounded"
-              onChange={(e) => onFilterChange('existencia', e.target.value)}
-            >
-              <option value="">Todos</option>
-              <option value="disponible">Disponible</option>
-              <option value="agotado">Sin existencias</option>
-            </select>
           </div>
         )}
       </div>
